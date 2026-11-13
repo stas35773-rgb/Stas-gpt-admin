@@ -1,6 +1,6 @@
 {
   "expo": {
-    "owner": "stas-gpts",
+    "owner": "clumsymove",
     "name": "Stas GPT Admin",
     "slug": "stas-gpt-admin",
     "version": "1.0.0",
@@ -17,7 +17,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "6e51127d-93e3-462e-b4d8-0af808cd126c"
+        "projectId": "f738a88a-f99f-4c63-a1a0-7676262b5e95"
       }
     }
   }
