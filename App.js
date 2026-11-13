@@ -7,7 +7,7 @@ import { auth, db } from './firebase';
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null); // 'admin', 'developer' или 'user'
+  const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,7 +43,8 @@ export default function App() {
     );
   }
 
-  return <Dashboard role={role} />;
+  // Передаем UID текущего пользователя в Dashboard
+  return <Dashboard role={role} currentUid={user.uid} />;
 }
 
 function LoginScreen() {
@@ -73,7 +74,7 @@ function LoginScreen() {
   );
 }
 
-function Dashboard({ role }) {
+function Dashboard({ role, currentUid }) {
   const [activeTab, setActiveTab] = useState('users');
 
   return (
@@ -96,12 +97,13 @@ function Dashboard({ role }) {
         </TouchableOpacity>
       </View>
 
-      {activeTab === 'users' ? <UsersTab currentUserRole={role} /> : <ChatsTab />}
+      {/* Передаем currentUid дальше в UsersTab */}
+      {activeTab === 'users' ? <UsersTab currentUserRole={role} currentUid={currentUid} /> : <ChatsTab />}
     </View>
   );
 }
 
-function UsersTab({ currentUserRole }) {
+function UsersTab({ currentUserRole, currentUid }) {
   const [users, setUsers] = useState([]);
 
   const fetchUsers = async () => {
@@ -117,7 +119,6 @@ function UsersTab({ currentUserRole }) {
   };
 
   const toggleRole = async (targetUserId, targetRole) => {
-    // АДМИН НЕ МОЖЕТ СНЯТЬ РАЗРАБОТЧИКА
     if (currentUserRole === 'admin' && targetRole === 'developer') {
       return Alert.alert('Ошибка', 'Администратор не может изменить роль разработчика.');
     }
@@ -125,17 +126,20 @@ function UsersTab({ currentUserRole }) {
     let newRole = 'user';
     if (targetRole === 'user') newRole = 'admin';
     else if (targetRole === 'admin') newRole = 'user';
-    else if (targetRole === 'developer') newRole = 'admin'; // Разработчик понижает до админа
+    else if (targetRole === 'developer') newRole = 'admin';
 
     await updateDoc(doc(db, "users", targetUserId), { role: newRole });
     fetchUsers();
   };
 
-  // Проверка, можно ли показывать кнопку смены роли
-  const canChangeRole = (targetRole) => {
-    // Разработчик может менять всех
+  // Проверка: можно ли менять роль этому пользователю?
+  const canChangeRole = (targetRole, targetUid) => {
+    // ЖЕЛЕЗНОЕ ПРАВИЛО: Нельзя менять роль самому себе!
+    if (targetUid === currentUid) return false;
+
+    // Разработчик может менять всех (кроме себя)
     if (currentUserRole === 'developer') return true; 
-    // Админ может менять всех, КРОМЕ разработчиков
+    // Админ может менять всех, кроме разработчиков (и себя)
     if (currentUserRole === 'admin' && targetRole !== 'developer') return true; 
     return false;
   };
@@ -145,7 +149,9 @@ function UsersTab({ currentUserRole }) {
       {users.map((u) => (
         <View key={u.id} style={s.userCard}>
           <View style={{ flex: 1 }}>
-            <Text style={s.userEmail}>{u.email}</Text>
+            <Text style={s.userEmail}>
+              {u.email} {u.id === currentUid ? '(Вы)' : ''}
+            </Text>
             <Text style={s.userRole}>
               Роль: <Text style={{color: u.role === 'developer' ? '#6ee7b7' : u.role === 'admin' ? '#fbbf24' : '#888'}}>{u.role.toUpperCase()}</Text> 
               {u.blocked ? ' | 🔴 Заблокирован' : ' | 🟢 Активен'}
@@ -153,15 +159,18 @@ function UsersTab({ currentUserRole }) {
           </View>
           
           <View style={s.actionRow}>
-            <TouchableOpacity 
-              style={[s.actionBtn, { backgroundColor: u.blocked ? '#34d399' : '#f87171' }]} 
-              onPress={() => toggleBlock(u.id, u.blocked)}
-            >
-              <Text style={s.actionText}>{u.blocked ? 'Разблокировать' : 'Блок'}</Text>
-            </TouchableOpacity>
+            {/* Блокировка (скрываем кнопку, если это ты сам, чтобы случайно не забанить себя) */}
+            {u.id !== currentUid && (
+              <TouchableOpacity 
+                style={[s.actionBtn, { backgroundColor: u.blocked ? '#34d399' : '#f87171' }]} 
+                onPress={() => toggleBlock(u.id, u.blocked)}
+              >
+                <Text style={s.actionText}>{u.blocked ? 'Разблокировать' : 'Блок'}</Text>
+              </TouchableOpacity>
+            )}
 
-            {/* Если canChangeRole вернула true, показываем кнопку */}
-            {canChangeRole(u.role) && (
+            {/* Смена роли (скрываем кнопку, если это ты сам) */}
+            {canChangeRole(u.role, u.id) && (
               <TouchableOpacity 
                 style={[s.actionBtn, { 
                   backgroundColor: u.role === 'admin' ? '#fbbf24' : (u.role === 'developer' ? '#f87171' : '#3b82f6'), 
