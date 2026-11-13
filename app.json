@@ -1,7 +1,6 @@
 {
   "expo": {
-    "owner": "clumsymove",
-    "name": "Stas GPT Admin",
+    "name": "Stas GPT",
     "slug": "stas-gpt-admin",
     "version": "1.0.0",
     "orientation": "portrait",
