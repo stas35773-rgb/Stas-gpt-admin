@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Stas GPT Admin",
+    "slug": "stas-gpt-admin",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0f1115"
+    },
+    "android": {
+      "package": "com.stasgpt.admin",
+      "adaptiveIcon": {
+        "backgroundColor": "#0f1115"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "СЮДА_ВСТАВИШЬ_ID_ПОЗЖЕ"
+      }
+    }
+  }
+}
