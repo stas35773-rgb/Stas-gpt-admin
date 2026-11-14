@@ -1,3 +1,4 @@
+import { collection, getDocs, doc, updateDoc, query, orderBy, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
@@ -190,9 +191,111 @@ function UsersTab({ currentUserRole, currentUid }) {
   );
 }
 
+// ================= ВКЛАДКА: ЧАТЫ =================
 function ChatsTab() {
-  const [chats, setChats] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [announcementText, setAnnouncementText] = useState('');
+  const [isAnnouncing, setIsAnnouncing] = useState(false);
 
+  // Загружаем пользователей
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const querySnapshot = await getDocs(collection(db, "users"));
+      setUsers(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    };
+    fetchUsers();
+  }, []);
+
+  // Загружаем чаты выбранного пользователя
+  useEffect(() => {
+    if (!selectedUser) return;
+    const fetchMessages = async () => {
+      // ВАЖНО: Для этого в Firebase нужно создать индекс (об этом ниже)
+      const q = query(
+        collection(db, "messages"), 
+        where("userId", "==", selectedUser.id),
+        orderBy("createdAt", "desc")
+      );
+      const querySnapshot = await getDocs(q);
+      setMessages(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    };
+    fetchMessages();
+  }, [selectedUser]);
+
+  // Отправка объявления
+  const sendAnnouncement = async () => {
+    if (!announcementText.trim()) return;
+    setIsAnnouncing(true);
+    try {
+      await addDoc(collection(db, "announcements"), {
+        text: announcementText,
+        createdAt: serverTimestamp()
+      });
+      Alert.alert('Успех', 'Объявление отправлено всем пользователям!');
+      setAnnouncementText('');
+    } catch (e) {
+      Alert.alert('Ошибка', e.message);
+    }
+    setIsAnnouncing(false);
+  };
+
+  // Если выбран пользователь — показываем его чат
+  if (selectedUser) {
+    return (
+      <View style={{ flex: 1 }}>
+        <View style={s.chatHeader}>
+          <TouchableOpacity onPress={() => setSelectedUser(null)} style={{ padding: 10 }}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={s.chatHeaderTitle}>{selectedUser.email}</Text>
+        </View>
+        <ScrollView style={{ padding: 10 }}>
+          {messages.length === 0 && <Text style={{ color: '#888', textAlign: 'center', marginTop: 20 }}>Нет сообщений</Text>}
+          {messages.map((c) => (
+            <View key={c.id} style={s.chatCard}>
+              <Text style={s.chatMeta}>{c.model?.toUpperCase()} · {new Date(c.createdAt?.toDate()).toLocaleString()}</Text>
+              <Text style={s.chatQ}>Q: {c.question}</Text>
+              <Text style={s.chatA}>A: {c.answer}</Text>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // Если пользователь не выбран — показываем список юзеров и форму объявления
+  return (
+    <ScrollView style={{ padding: 10 }}>
+      {/* Форма объявления */}
+      <View style={s.announcementBox}>
+        <Text style={s.announcementTitle}>Сделать объявление всем</Text>
+        <TextInput 
+          style={s.announcementInput} 
+          placeholder="Текст объявления..." 
+          placeholderTextColor="#666"
+          value={announcementText}
+          onChangeText={setAnnouncementText}
+          multiline
+        />
+        <TouchableOpacity style={s.announcementBtn} onPress={sendAnnouncement} disabled={isAnnouncing}>
+          <Text style={s.announcementBtnText}>{isAnnouncing ? 'Отправка...' : 'Отправить всем'}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', marginVertical: 15 }}>Выберите пользователя:</Text>
+
+      {users.map((u) => (
+        <TouchableOpacity key={u.id} style={s.userSelectCard} onPress={() => setSelectedUser(u)}>
+          <Ionicons name="person-circle-outline" size={30} color="#3b82f6" style={{marginRight: 10}} />
+          <Text style={s.userSelectEmail}>{u.email}</Text>
+          <Ionicons name="chevron-forward" size={20} color="#888" />
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+  );
+            }
   useEffect(() => {
     const fetchChats = async () => {
       const q = query(collection(db, "messages"), orderBy("createdAt", "desc"));
@@ -242,4 +345,14 @@ const s = StyleSheet.create({
   chatMeta: { color: '#6ee7b7', fontSize: 12, marginBottom: 5 },
   chatQ: { color: '#fff', fontSize: 14, fontWeight: 'bold', marginBottom: 5 },
   chatA: { color: '#aaa', fontSize: 14, fontStyle: 'italic' },
+  // Стили для чатов и объявлений
+chatHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#161a22', paddingTop: 50, paddingBottom: 15, paddingHorizontal: 10 },
+chatHeaderTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginLeft: 10 },
+userSelectCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1c1c1e', padding: 15, borderRadius: 12, marginBottom: 10 },
+userSelectEmail: { color: '#fff', fontSize: 16, flex: 1 },
+announcementBox: { backgroundColor: '#1c1c1e', padding: 15, borderRadius: 12, marginBottom: 20 },
+announcementTitle: { color: '#fbbf24', fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
+announcementInput: { backgroundColor: '#0f1115', color: '#fff', padding: 12, borderRadius: 8, minHeight: 80, textAlignVertical: 'top' },
+announcementBtn: { backgroundColor: '#fbbf24', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+announcementBtnText: { color: '#000', fontWeight: 'bold' },
 });
