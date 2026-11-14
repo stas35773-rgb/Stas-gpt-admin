@@ -1,8 +1,7 @@
-import { collection, getDocs, doc, updateDoc, query, orderBy, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { collection, getDocs, doc, updateDoc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, query, orderBy, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from './firebase';
 
@@ -17,9 +16,7 @@ export default function App() {
       if (u) {
         const querySnapshot = await getDocs(collection(db, "users"));
         querySnapshot.forEach((doc) => {
-          if (doc.id === u.uid) {
-            setRole(doc.data().role);
-          }
+          if (doc.id === u.uid) setRole(doc.data().role);
         });
       }
       setLoading(false);
@@ -28,23 +25,18 @@ export default function App() {
   }, []);
 
   if (loading) return <View style={s.center}><ActivityIndicator color="#fff" size="large" /></View>;
-
   if (!user) return <LoginScreen />;
-
   if (role !== 'admin' && role !== 'developer') {
     return (
       <View style={s.center}>
         <Ionicons name="shield-half" size={60} color="#f87171" />
         <Text style={{ color: '#f87171', fontSize: 20, fontWeight: 'bold', marginTop: 20 }}>Доступ запрещен</Text>
         <Text style={{ color: '#888', marginTop: 10, textAlign: 'center' }}>У вас нет прав администратора или разработчика.</Text>
-        <TouchableOpacity onPress={() => signOut(auth)} style={s.btn}>
-          <Text style={s.btnText}>Выйти</Text>
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => signOut(auth)} style={s.btn}><Text style={s.btnText}>Выйти</Text></TouchableOpacity>
       </View>
     );
   }
 
-  // Передаем UID текущего пользователя в Dashboard
   return <Dashboard role={role} currentUid={user.uid} />;
 }
 
@@ -54,11 +46,8 @@ function LoginScreen() {
 
   const handleAuth = async () => {
     if (!email || !pass) return Alert.alert('Ошибка', 'Заполните все поля');
-    try {
-      await signInWithEmailAndPassword(auth, email, pass);
-    } catch (e) {
-      Alert.alert('Ошибка', e.message);
-    }
+    try { await signInWithEmailAndPassword(auth, email, pass); } 
+    catch (e) { Alert.alert('Ошибка', e.message); }
   };
 
   return (
@@ -68,9 +57,7 @@ function LoginScreen() {
       <Text style={s.subtitle}>Вход для персонала</Text>
       <TextInput style={s.input} placeholder="Почта" placeholderTextColor="#666" value={email} onChangeText={setEmail} autoCapitalize="none" />
       <TextInput style={s.input} placeholder="Пароль" placeholderTextColor="#666" value={pass} onChangeText={setPass} secureTextEntry />
-      <TouchableOpacity style={s.mainBtn} onPress={handleAuth}>
-        <Text style={s.btnText}>Войти</Text>
-      </TouchableOpacity>
+      <TouchableOpacity style={s.mainBtn} onPress={handleAuth}><Text style={s.btnText}>Войти</Text></TouchableOpacity>
     </View>
   );
 }
@@ -82,11 +69,8 @@ function Dashboard({ role, currentUid }) {
     <View style={s.container}>
       <View style={s.header}>
         <Text style={s.headerTitle}>Панель ({role.toUpperCase()})</Text>
-        <TouchableOpacity onPress={() => signOut(auth)}>
-          <Ionicons name="log-out-outline" size={28} color="#f87171" />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => signOut(auth)}><Ionicons name="log-out-outline" size={28} color="#f87171" /></TouchableOpacity>
       </View>
-
       <View style={s.tabs}>
         <TouchableOpacity style={[s.tab, activeTab === 'users' && s.activeTab]} onPress={() => setActiveTab('users')}>
           <Ionicons name="people" size={20} color={activeTab === 'users' ? '#000' : '#888'} />
@@ -97,8 +81,6 @@ function Dashboard({ role, currentUid }) {
           <Text style={[s.tabText, activeTab === 'chats' && {color: '#000'}]}>Чаты</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Передаем currentUid дальше в UsersTab */}
       {activeTab === 'users' ? <UsersTab currentUserRole={role} currentUid={currentUid} /> : <ChatsTab />}
     </View>
   );
@@ -123,24 +105,17 @@ function UsersTab({ currentUserRole, currentUid }) {
     if (currentUserRole === 'admin' && targetRole === 'developer') {
       return Alert.alert('Ошибка', 'Администратор не может изменить роль разработчика.');
     }
-
     let newRole = 'user';
     if (targetRole === 'user') newRole = 'admin';
     else if (targetRole === 'admin') newRole = 'user';
     else if (targetRole === 'developer') newRole = 'admin';
-
     await updateDoc(doc(db, "users", targetUserId), { role: newRole });
     fetchUsers();
   };
 
-  // Проверка: можно ли менять роль этому пользователю?
   const canChangeRole = (targetRole, targetUid) => {
-    // ЖЕЛЕЗНОЕ ПРАВИЛО: Нельзя менять роль самому себе!
     if (targetUid === currentUid) return false;
-
-    // Разработчик может менять всех (кроме себя)
     if (currentUserRole === 'developer') return true; 
-    // Админ может менять всех, кроме разработчиков (и себя)
     if (currentUserRole === 'admin' && targetRole !== 'developer') return true; 
     return false;
   };
@@ -150,38 +125,18 @@ function UsersTab({ currentUserRole, currentUid }) {
       {users.map((u) => (
         <View key={u.id} style={s.userCard}>
           <View style={{ flex: 1 }}>
-            <Text style={s.userEmail}>
-              {u.email} {u.id === currentUid ? '(Вы)' : ''}
-            </Text>
-            <Text style={s.userRole}>
-              Роль: <Text style={{color: u.role === 'developer' ? '#6ee7b7' : u.role === 'admin' ? '#fbbf24' : '#888'}}>{u.role.toUpperCase()}</Text> 
-              {u.blocked ? ' | 🔴 Заблокирован' : ' | 🟢 Активен'}
-            </Text>
+            <Text style={s.userEmail}>{u.email} {u.id === currentUid ? '(Вы)' : ''}</Text>
+            <Text style={s.userRole}>Роль: <Text style={{color: u.role === 'developer' ? '#6ee7b7' : u.role === 'admin' ? '#fbbf24' : '#888'}}>{u.role.toUpperCase()}</Text> {u.blocked ? ' | 🔴 Блок' : ' | 🟢 Активен'}</Text>
           </View>
-          
           <View style={s.actionRow}>
-            {/* Блокировка (скрываем кнопку, если это ты сам, чтобы случайно не забанить себя) */}
             {u.id !== currentUid && (
-              <TouchableOpacity 
-                style={[s.actionBtn, { backgroundColor: u.blocked ? '#34d399' : '#f87171' }]} 
-                onPress={() => toggleBlock(u.id, u.blocked)}
-              >
+              <TouchableOpacity style={[s.actionBtn, { backgroundColor: u.blocked ? '#34d399' : '#f87171' }]} onPress={() => toggleBlock(u.id, u.blocked)}>
                 <Text style={s.actionText}>{u.blocked ? 'Разблокировать' : 'Блок'}</Text>
               </TouchableOpacity>
             )}
-
-            {/* Смена роли (скрываем кнопку, если это ты сам) */}
             {canChangeRole(u.role, u.id) && (
-              <TouchableOpacity 
-                style={[s.actionBtn, { 
-                  backgroundColor: u.role === 'admin' ? '#fbbf24' : (u.role === 'developer' ? '#f87171' : '#3b82f6'), 
-                  marginLeft: 8 
-                }]} 
-                onPress={() => toggleRole(u.id, u.role)}
-              >
-                <Text style={s.actionText}>
-                  {u.role === 'user' ? 'Сделать админом' : u.role === 'admin' ? 'Снять админа' : 'Снять разраба'}
-                </Text>
+              <TouchableOpacity style={[s.actionBtn, { backgroundColor: u.role === 'admin' ? '#fbbf24' : (u.role === 'developer' ? '#f87171' : '#3b82f6'), marginLeft: 8 }]} onPress={() => toggleRole(u.id, u.role)}>
+                <Text style={s.actionText}>{u.role === 'user' ? 'Сделать админом' : u.role === 'admin' ? 'Снять админа' : 'Снять разраба'}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -191,7 +146,6 @@ function UsersTab({ currentUserRole, currentUid }) {
   );
 }
 
-// ================= ВКЛАДКА: ЧАТЫ =================
 function ChatsTab() {
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -199,7 +153,6 @@ function ChatsTab() {
   const [announcementText, setAnnouncementText] = useState('');
   const [isAnnouncing, setIsAnnouncing] = useState(false);
 
-  // Загружаем пользователей
   useEffect(() => {
     const fetchUsers = async () => {
       const querySnapshot = await getDocs(collection(db, "users"));
@@ -208,54 +161,39 @@ function ChatsTab() {
     fetchUsers();
   }, []);
 
-  // Загружаем чаты выбранного пользователя
   useEffect(() => {
     if (!selectedUser) return;
     const fetchMessages = async () => {
-      // ВАЖНО: Для этого в Firebase нужно создать индекс (об этом ниже)
-      const q = query(
-        collection(db, "messages"), 
-        where("userId", "==", selectedUser.id),
-        orderBy("createdAt", "desc")
-      );
+      const q = query(collection(db, "messages"), where("userId", "==", selectedUser.id), orderBy("createdAt", "desc"));
       const querySnapshot = await getDocs(q);
       setMessages(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     };
     fetchMessages();
   }, [selectedUser]);
 
-  // Отправка объявления
   const sendAnnouncement = async () => {
     if (!announcementText.trim()) return;
     setIsAnnouncing(true);
     try {
-      await addDoc(collection(db, "announcements"), {
-        text: announcementText,
-        createdAt: serverTimestamp()
-      });
-      Alert.alert('Успех', 'Объявление отправлено всем пользователям!');
+      await addDoc(collection(db, "announcements"), { text: announcementText, createdAt: serverTimestamp() });
+      Alert.alert('Успех', 'Объявление отправлено!');
       setAnnouncementText('');
-    } catch (e) {
-      Alert.alert('Ошибка', e.message);
-    }
+    } catch (e) { Alert.alert('Ошибка', e.message); }
     setIsAnnouncing(false);
   };
 
-  // Если выбран пользователь — показываем его чат
   if (selectedUser) {
     return (
       <View style={{ flex: 1 }}>
         <View style={s.chatHeader}>
-          <TouchableOpacity onPress={() => setSelectedUser(null)} style={{ padding: 10 }}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setSelectedUser(null)} style={{ padding: 10 }}><Ionicons name="arrow-back" size={24} color="#fff" /></TouchableOpacity>
           <Text style={s.chatHeaderTitle}>{selectedUser.email}</Text>
         </View>
         <ScrollView style={{ padding: 10 }}>
           {messages.length === 0 && <Text style={{ color: '#888', textAlign: 'center', marginTop: 20 }}>Нет сообщений</Text>}
           {messages.map((c) => (
             <View key={c.id} style={s.chatCard}>
-              <Text style={s.chatMeta}>{c.model?.toUpperCase()} · {new Date(c.createdAt?.toDate()).toLocaleString()}</Text>
+              <Text style={s.chatMeta}>{c.model?.toUpperCase()} · {c.createdAt ? new Date(c.createdAt.toDate()).toLocaleString() : ''}</Text>
               <Text style={s.chatQ}>Q: {c.question}</Text>
               <Text style={s.chatA}>A: {c.answer}</Text>
             </View>
@@ -265,55 +203,22 @@ function ChatsTab() {
     );
   }
 
-  // Если пользователь не выбран — показываем список юзеров и форму объявления
   return (
     <ScrollView style={{ padding: 10 }}>
-      {/* Форма объявления */}
       <View style={s.announcementBox}>
         <Text style={s.announcementTitle}>Сделать объявление всем</Text>
-        <TextInput 
-          style={s.announcementInput} 
-          placeholder="Текст объявления..." 
-          placeholderTextColor="#666"
-          value={announcementText}
-          onChangeText={setAnnouncementText}
-          multiline
-        />
+        <TextInput style={s.announcementInput} placeholder="Текст объявления..." placeholderTextColor="#666" value={announcementText} onChangeText={setAnnouncementText} multiline />
         <TouchableOpacity style={s.announcementBtn} onPress={sendAnnouncement} disabled={isAnnouncing}>
           <Text style={s.announcementBtnText}>{isAnnouncing ? 'Отправка...' : 'Отправить всем'}</Text>
         </TouchableOpacity>
       </View>
-
       <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', marginVertical: 15 }}>Выберите пользователя:</Text>
-
       {users.map((u) => (
         <TouchableOpacity key={u.id} style={s.userSelectCard} onPress={() => setSelectedUser(u)}>
           <Ionicons name="person-circle-outline" size={30} color="#3b82f6" style={{marginRight: 10}} />
           <Text style={s.userSelectEmail}>{u.email}</Text>
           <Ionicons name="chevron-forward" size={20} color="#888" />
         </TouchableOpacity>
-      ))}
-    </ScrollView>
-  );
-            }
-  useEffect(() => {
-    const fetchChats = async () => {
-      const q = query(collection(db, "messages"), orderBy("createdAt", "desc"));
-      const querySnapshot = await getDocs(q);
-      setChats(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    };
-    fetchChats();
-  }, []);
-
-  return (
-    <ScrollView style={{ padding: 10 }}>
-      {chats.length === 0 && <Text style={{ color: '#888', textAlign: 'center', marginTop: 20 }}>Пока нет переписок</Text>}
-      {chats.map((c) => (
-        <View key={c.id} style={s.chatCard}>
-          <Text style={s.chatMeta}>{c.email} · {c.model?.toUpperCase()}</Text>
-          <Text style={s.chatQ}>Q: {c.question}</Text>
-          <Text style={s.chatA}>A: {c.answer}</Text>
-        </View>
       ))}
     </ScrollView>
   );
@@ -345,14 +250,13 @@ const s = StyleSheet.create({
   chatMeta: { color: '#6ee7b7', fontSize: 12, marginBottom: 5 },
   chatQ: { color: '#fff', fontSize: 14, fontWeight: 'bold', marginBottom: 5 },
   chatA: { color: '#aaa', fontSize: 14, fontStyle: 'italic' },
-  // Стили для чатов и объявлений
-chatHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#161a22', paddingTop: 50, paddingBottom: 15, paddingHorizontal: 10 },
-chatHeaderTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginLeft: 10 },
-userSelectCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1c1c1e', padding: 15, borderRadius: 12, marginBottom: 10 },
-userSelectEmail: { color: '#fff', fontSize: 16, flex: 1 },
-announcementBox: { backgroundColor: '#1c1c1e', padding: 15, borderRadius: 12, marginBottom: 20 },
-announcementTitle: { color: '#fbbf24', fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
-announcementInput: { backgroundColor: '#0f1115', color: '#fff', padding: 12, borderRadius: 8, minHeight: 80, textAlignVertical: 'top' },
-announcementBtn: { backgroundColor: '#fbbf24', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 10 },
-announcementBtnText: { color: '#000', fontWeight: 'bold' },
+  chatHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#161a22', paddingTop: 50, paddingBottom: 15, paddingHorizontal: 10 },
+  chatHeaderTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginLeft: 10 },
+  userSelectCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1c1c1e', padding: 15, borderRadius: 12, marginBottom: 10 },
+  userSelectEmail: { color: '#fff', fontSize: 16, flex: 1 },
+  announcementBox: { backgroundColor: '#1c1c1e', padding: 15, borderRadius: 12, marginBottom: 20 },
+  announcementTitle: { color: '#fbbf24', fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
+  announcementInput: { backgroundColor: '#0f1115', color: '#fff', padding: 12, borderRadius: 8, minHeight: 80, textAlignVertical: 'top' },
+  announcementBtn: { backgroundColor: '#fbbf24', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+  announcementBtnText: { color: '#000', fontWeight: 'bold' },
 });
