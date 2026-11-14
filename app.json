@@ -1,5 +1,6 @@
 {
   "expo": {
+    "owner": "clumsymoves-team",
     "name": "Stas GPT Admin",
     "slug": "stas-gpt-admin",
     "version": "1.0.0",
@@ -16,7 +17,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "f738a88a-f99f-4c63-a1a0-7676262b5e95"
+        "projectId": "ТУТ_ОСТАВЬ_СВОЙ_ТЕКУЩИЙ_ID"
       }
     }
   }
